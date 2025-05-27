@@ -1,11 +1,22 @@
-Package: sivpack
-Title: SIV method for Linear Regression Models.
+Package: siv
+Title: SIV method for Linear Regression Models
 Version: 0.0.0.9000
-Authors@R: C(
-    person("Ratbek", "Dzhumashev", , "ratbek.dzhumashev@monash.edu", role = c("aut", "cre")),
-    person("Ainura", "Tursunalieva", role = "aut"))
+Authors@R: c(
+    person("Ratbek", "Dzhumashev", email= "ratbek.dzhumashev@monash.edu", role = c("aut", "cre")),
+    person("Ainura", "Tursunalieva", email = "ainura.tursunalieva@data61.csiro.au", role = "aut"))
 Description: The package estimates  linear regression models with one endogenous variable using the synthetic IV method.
 License: `use_mit_license()`
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+Imports: 
+    AER,
+    dplyr,
+    ivreg,
+    rMR,
+    sandwich,
+    stats,
+    wooldridge
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

@@ -36,7 +36,7 @@
 #' Y <- as.character(colnames(H0))[1] ###OUTCOME variable
 #' X <-as.character(colnames(H0))[2] ###ENDOEGENOUS variable
 #' H<- as.character(colnames(H0))[-(1:2)] #
-#' result <- siv_regression(data, Y, X, H, reps=5)
+#' result <- siv_reg(data, Y, X, H, reps=5)
 #' iv1 <-(result$IV1)# a simple SIV
 #' iv2 <-(result$IV2)# a robust parametric SIV (RSIV-p)
 #' iv3 <-(result$IV3)# a robust non-parametric SIV (RSIV-n)
@@ -45,7 +45,8 @@
 #' summ.iv3 <- summary(iv3, diagnostics=TRUE)
 #'result$citable ###  renders the CI table of beta estimates
 #'result$delta0 ###  renders the delta0 estimates:SIV, RSIV-p, RSIV-n.
-siv_regression <- function(data, Y, X, H, reps) {
+#'SIv <- result$sivs[[2]] ## renders the robust SIV estimation
+siv_reg <- function(data, Y, X, H, reps) {
   library(dplyr)
   library(ivreg)
   library(lmtest)
@@ -70,7 +71,6 @@ siv_regression <- function(data, Y, X, H, reps) {
   # determine the number of rows
   N<-nrow(data)
   #####SIV Method
-
   ###Basic vectors for  SIV calculation###
   # ### the outcome variable
   ## Factoring out the effects of other exogenous variables
@@ -165,7 +165,7 @@ siv_regression <- function(data, Y, X, H, reps) {
   }
 
   k <- signc[which.max(ch),1]
-  cat("The true sign for cor(xu) is", k )
+ # cat("The true sign for cor(xu) is", k )
   #####################################
 
   if(k!=0){
@@ -260,8 +260,10 @@ siv_regression <- function(data, Y, X, H, reps) {
       ### update with your own instruments: instruments<-~ siv+all exogenous variables
       iv_str <- paste(paste0(" ~ ", "siv","+"), paste(H, collapse = " + "))## Construct formula as a string
       instruments <- as.formula(iv_str)# Convert to formula object
-      #instruments<-~siv+educ+ age+kidslt6+ kidsge6+ nwifeinc
+      #instruments<-~ siv+all exogenous variables
       # formula <-hours~lwage+educ+ age+kidslt6+ kidsge6+ nwifeinc
+      ###the First-Stage equation formula
+      fs_formula_str <- paste(paste0(X," ~ ","siv","+"), paste(H, collapse = " + "))#
       #### DT condition of homoscedatic case
       d0 <- (which.min(abs(m1)))*delt
       d0i[l] <- d0
@@ -293,7 +295,7 @@ siv_regression <- function(data, Y, X, H, reps) {
       sumb2rn[l] <-  summ.iv4$coefficients[2,2]
       l <- l+1
     }
-
+    sign_cor_ux <- k
     ## Distribution of sample paramters
     # the simple homogenous case
     fitc <- fitc[complete.cases(fitc)]
@@ -339,12 +341,16 @@ siv_regression <- function(data, Y, X, H, reps) {
     d0i <-  d0i[complete.cases(d0i)]
     d0m <- mean(d0i)
     data$siv<-(data$x-k*d0m*data$R)
+    siv<-(data$x-k*d0m*data$R)
+    fs1<-lm(as.formula(fs_formula_str), data=data)
     iv1<-ivreg(formula, instruments, data=data)
     #summ.iv1 <- summary(iv1, diagnostics=T)#
     ############Paramteric heterogenous case
     d0ri <-  d0ri[complete.cases(d0ri)]
     d0rm <- mean(d0ri)
     data$siv<-(data$x-k*d0rm*data$R)
+    sivr<-(data$x-k*d0rm*data$R)
+    fs2<-lm(as.formula(fs_formula_str), data=data)
     iv2<-ivreg(formula, instruments, data=data)
     #
 
@@ -352,24 +358,35 @@ siv_regression <- function(data, Y, X, H, reps) {
     d0rni <-  d0rni[complete.cases(d0rni)]
     d0rnm <- mean(d0rni)
     data$siv<-(data$x-k*d0rnm*data$R)
+    sivrn<-(data$x-k*d0rnm*data$R)
+    fs3<-lm(as.formula(fs_formula_str), data=data)
     iv3<-ivreg(formula, instruments, data=data)
     #
-  }else{
+      }else{
     v=rnorm(N,0,1)
     print("NO endogeneity problem. All SIV estimates are the same as the OLS")
     d0m=0.001
     data$siv<-(data$x-k*d0m*data$R)+v
     iv1<-ivreg(formula, instruments, data=data)
     #
-    d0rm=0.001
     data$siv<-(data$x-k*d0rm*data$R)+v
     iv2<-ivreg(formula, instruments, data=data)
     #
-
-    d0rnm=0.001
     data$siv<-(data$x-k*d0rnm*data$R)+v
     iv3<-ivreg(formula, instruments, data=data)
+
+    siv<-(data$x-k*d0m*data$R)
+    ############Parametric heterogeneous case
+    sivr <-siv
+    #### Non-parametric heterogeneous case
+    sivrn<-siv
     #
-  }
-  return(list(IV1 = (iv1), IV2 = (iv2), IV3 = (iv3), citable=mv, delta0=c(d0m, d0rm, d0rnm)))
+      }
+  ### Table for CI of beta
+  siv_tb<-data.frame(siv,sivr,sivrn)
+  colnames(siv_tb)<-c("SIV","SIV_r", "SIV_rn")
+  #rownames(mv)<- c("SIV","SIVRr","SIVRn")#, "nearc4")
+  ###   (mv)
+ # cat("Use result$IV1, result$IV3, and result$IV3 for SIV estimations.  Use result$delta0 to  obtain delta0 to compute the SIV" )
+  return(list(IV1 = (iv1), IV2 = (iv2), IV3 = (iv3), FS1=(fs1), FS2=(fs2), FS3=(fs3), sign=(sign_cor_ux), sivs=(siv_tb), citable=mv, delta0=c(d0m, d0rm, d0rnm)))
 }

@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(sivpack)
+library(siv)
 
-test_check("sivpack")
+test_check("siv")
