@@ -50,7 +50,6 @@ siv_regression <- function(data, Y, X, H, reps) {
   library(ivreg)
   library(lmtest)
   library(sandwich)
-  library(rMR)
   library(AER)
   library()
   rad2deg <- function(rad) {(rad * 180) / (pi)}
