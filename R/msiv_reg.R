@@ -17,7 +17,6 @@ msiv_reg <- function(data, Y, E, H, reps) {
   library(ivreg)
   library(lmtest)
   library(sandwich)
-  library(rMR)
   library(AER)
   library()
   rad2deg <- function(rad) {(rad * 180) / (pi)}
@@ -242,11 +241,11 @@ for (g in 1:length(E)) {
         l1 <- summary(lm((data_sample$ev21^2)~data_sample$siv,data=data_sample))
         l2 <-summary( lm((data_sample$ev22^2)~data_sample$siv,data=data_sample))
         n=length(data_sample$ev21)
-        ssr1 <- sumsq(predict(lm((ev21^2)~siv,data=data_sample))-mean(data_sample$ev21^2))
-        sse1=sumsq(data_sample$ev21)
+        ssr1 <- sum((predict(lm((ev21^2)~siv,data=data_sample))-mean(data_sample$ev21^2))^2)
+        sse1=sum(data_sample$ev21^2)
         x1= (ssr1/2)/(sse1/n^2)^2
-        ssr2 <- sumsq(predict(lm((ev22^2)~siv,data=data_sample))-mean(data_sample$ev22^2))
-        sse2=sumsq(data_sample$ev22)
+        ssr2 <- sum((predict(lm((ev22^2)~siv,data=data_sample))-mean(data_sample$ev22^2))^2)
+        sse2=sum(data_sample$ev22^2)
         x2= (ssr2/2)/(sse2/n^2)^2
         #dv[i] <-pchisq(x2, df =1,lower.tail=FALSE)-pchisq(x1, df =1,lower.tail=FALSE)#
         x3 <- x1/x2#sumsq(predict(lm((ev22^2)~siv,data=data))/predict(lm((ev21^2)~siv,data=data))/predict(lm((ev21^2)~siv,data=data)))

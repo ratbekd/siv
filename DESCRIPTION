@@ -13,7 +13,6 @@ Imports:
     AER,
     dplyr,
     ivreg,
-    rMR,
     sandwich,
     stats,
     wooldridge
