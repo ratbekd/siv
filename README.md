@@ -39,5 +39,5 @@ summ.iv3 <- summary(iv3, diagnostics=T)
 One can review the $delta_0$ values found using the different appoaches:
 
 $result\$$ $delta_0$
- The first0satge equations can be obtained by using result$FS3.
+ The first-stage equations can be obtained by using result$FS3.
 
