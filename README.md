@@ -23,7 +23,7 @@ attach(data)
 #Y="hours" # outcome variable
 #X="lwage"# endogenous variable
 #H=c("educ", "age", "kidslt6", "kidsge6", "nwifeinc")# exogenous variables
-result <- siv_regression(data, "hours", "lwage", c("educ", "age", "kidslt6", "kidsge6", "nwifeinc"), reps=5)
+result <- siv_reg(data, "hours", "lwage", c("educ", "age", "kidslt6", "kidsge6", "nwifeinc"), reps=5)
 
 iv1 <- (result$IV1)
 
