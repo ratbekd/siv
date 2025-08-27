@@ -2,9 +2,9 @@
 Synthetic Instrumental Variable Method R-package
 
 The package estimates a linear regressions with one endogeneous variable using three different techniques of the SIV method.The essense of the mthod is in construction of a synthetic IV using  $s = x + k \delta r$, where $x$ is the endogenous variable in the reduced form, and $r$ is a vector determined in the plane spanned by the outcome variable $y$ and endogenous variable $x$. Vector $r$ is constructed as an orthogonal vector to $x$. 
-The first method is a simple SIV method that assumes homoscedasdicity of the error term. This method implies that if we synthesize such an  SIV,  s*, that satisfies $E(s*'e'e) = 0$, then, $E(s*'u) = 0$ also must hold. 
+The first method is a simple SIV method that assumes homoscedasdicity of the error term. This method implies that if we synthesize such an  SIV,  s*, that satisfies $cov(s*, e^2) = 0$, then, $E(s*'u) = 0$ also must hold. 
 Thus, in this case, 
-the SIV method determines a valid SIV such that $E(s|u) = 0$   by $s*=x+k\delta_0 r$ where $\delta_0=arg[E(ee'| s*)=0]$, and $e$ is the first-stage error term. Then, $\beta$, the  parameter in  the regression equaition, is identified by an IV estimator: 
+the SIV method determines a valid SIV such that $E(s|u) = 0$   by $s*=x+k\delta_0 r$ where $\delta_0=arg[cov(e^2,s*)=0]$, and $e$ is the first-stage error term. Then, $\beta$, the  parameter in  the regression equaition, is identified by an IV estimator: 
 $\hat{\beta}_{IV}=(x's^*)^{-1} x'y.$
 
 In the robust to heteroscedasticity approach, we use the difference in the degree of the heteroscedasticity, $\Delta$, is estimated by  prametrically or non-parametrically and their locus over $\delta \in (0, \bar{\delta})$ as given by  function $D_{\Delta}$.
