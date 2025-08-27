@@ -8,7 +8,7 @@ the SIV method determines a valid SIV such that $E(s|u) = 0$   by $s*=x+k\delta_
 $\hat{\beta}_{IV}=(x's^*)^{-1} x'y.$
 
 In the robust to heteroscedasticity approach, we use the difference in the degree of the heteroscedasticity, $\Delta$, is estimated by  prametrically or non-parametrically and their locus over $\delta \in (0, \bar{\delta})$ as given by  function $D_{\Delta}$.
-Then,  a valid SIV such that $E(  u| s*)=0$ is identified by $s*= x+k\delta_0  r$  where $\delta_0 =argmin_{\delta}(  D_{\Delta})$.   The details can be found in the related paper at  [SIV_DT.pdf](https://github.com/ratbekd/SIV-method/blob/main/SIV_DT_R10.pdf).
+Then,  a valid SIV such that $E( u| s*)=0$ is identified by $s*= x+k\delta_0  r$  where $\delta_0 =argmin_{\delta}(  D_{\Delta})$.   The details can be found in the related paper at  [SIV_DT.pdf](https://github.com/ratbekd/SIV-method/blob/main/SIV_DT_R10.pdf).
 
 The package can be installed in Rstudio paltform using this command:
 remotes::install_git("https://github.com/ratbekd/siv.git")
