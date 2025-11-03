@@ -4,29 +4,28 @@
 \alias{msiv_reg}
 \title{Perform Instrumental Variable Regression using multiple SIVs}
 \usage{
-msiv_reg(data, Y, E, H, reps)
+msiv_reg(data, Y, X, H, reps = 5)
 }
 \arguments{
 \item{data}{A data frame.}
 
 \item{Y}{Name of the dependent variable.}
 
-\item{E}{Name of the endogenous variables.}
+\item{X}{Character vector of endogenous variable names.}
 
-\item{H}{Vector of exogenous variable names}
+\item{H}{Character vector of exogenous variable names.}
 
-\item{reps}{Number of bootsrap loops.}
+\item{reps}{Number of bootstrap loops.}
 }
 \value{
-A list containing OLS and IV regression results.
+A list containing IV regression results and generated SIVs.
 }
 \description{
 Perform Instrumental Variable Regression using multiple SIVs
 }
 \examples{
-df <- wooldridge::mroz  # Use sample data set
-data <- df[complete.cases(df), ]  # Remove missing values
-attach(data)
-result <- msiv_reg(data, "hours", c("lwage", "educ"),c( "age", "kidslt6",
-"kidsge6", "nwifeinc"), reps=5)
+df <- wooldridge::mroz
+data <- df[complete.cases(df), ]
+result <- msiv_reg(data, "hours", c("lwage", "educ"),
+                   c("age", "kidslt6", "kidsge6", "nwifeinc"), reps=5)
 }
