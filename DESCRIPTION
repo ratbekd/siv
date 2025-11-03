@@ -4,18 +4,17 @@ Version: 0.0.0.9000
 Authors@R: c(
     person("Ratbek", "Dzhumashev", email= "ratbek.dzhumashev@monash.edu", role = c("aut", "cre")),
     person("Ainura", "Tursunalieva", email = "ainura.tursunalieva@data61.csiro.au", role = "aut"))
-Description: The package estimates  linear regression models with one endogenous variable using the synthetic IV method.
-License: `use_mit_license()`
+Description: The package estimates  linear regression models with endogenous variables using the synthetic IV method.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Imports: 
     AER,
-    dplyr,
-    ivreg,
     sandwich,
-    stats,
-    wooldridge
+    stats
 Suggests: 
+    wooldridge,
+    dplyr,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

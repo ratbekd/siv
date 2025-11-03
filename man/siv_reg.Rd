@@ -40,5 +40,5 @@ summ.iv2<- summary(iv2, diagnostics=TRUE)
 summ.iv3 <- summary(iv3, diagnostics=TRUE)
 result$citable ###  renders the CI table of beta estimates
 result$delta0 ###  renders the delta0 estimates:SIV, RSIV-p, RSIV-n.
-SIv <- result$sivs[[2]] ## renders the robust SIV estimation
+SIV <- result$sivs[[2]] ## renders the robust SIV estimation
 }

@@ -27,5 +27,6 @@ Perform Instrumental Variable Regression using multiple SIVs
 df <- wooldridge::mroz  # Use sample data set
 data <- df[complete.cases(df), ]  # Remove missing values
 attach(data)
-result <- msiv_reg(data, "hours", c("lwage", "educ"),c( "age", "kidslt6", "kidsge6", "nwifeinc"), reps=5)
+result <- msiv_reg(data, "hours", c("lwage", "educ"),c( "age", "kidslt6",
+"kidsge6", "nwifeinc"), reps=5)
 }

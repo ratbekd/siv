@@ -6,19 +6,17 @@
 #' @param H Vector of exogenous variable names
 #' @param reps Number of bootsrap loops.
 #' @return A list containing OLS and IV regression results.
+#' @importFrom stats pf var resid rnorm sd ecdf qt predict complete.cases fitted as.formula lm cor cov df.residual pchisq
+#' @importFrom sandwich vcovHC
+#' @importFrom AER ivreg
 #' @export
 #' @examples
 #' df <- wooldridge::mroz  # Use sample data set
 #' data <- df[complete.cases(df), ]  # Remove missing values
 #' attach(data)
-#' result <- msiv_reg(data, "hours", c("lwage", "educ"),c( "age", "kidslt6", "kidsge6", "nwifeinc"), reps=5)
+#' result <- msiv_reg(data, "hours", c("lwage", "educ"),c( "age", "kidslt6",
+#' "kidsge6", "nwifeinc"), reps=5)
 msiv_reg <- function(data, Y, E, H, reps) {
-  library(dplyr)
-  library(ivreg)
-  library(lmtest)
-  library(sandwich)
-  library(AER)
-  library()
   rad2deg <- function(rad) {(rad * 180) / (pi)}
   deg2rad <- function(deg) {(deg * pi) / (180)}
   #Two-sample Anderson-Darling statistic
@@ -150,7 +148,7 @@ for (g in 1:length(E)) {
       data$siv<-(data$x-k*d*data$R) ### SIV
       ####OLS estimates
       rls<-(lm(data$x~data$siv, data=data))
-      s.rls<-summary(rls,vcov. = function(x) vcovHC(x, type="HC1"), diagnostics=T)
+      s.rls<-summary(rls,vcov. = function(x) sandwich::vcovHC(x, type="HC1"), diagnostics=T)
       data$ev21<-resid(s.rls)
       m1[i]<-(cov(data$ev21^2,data$siv))
       m2[i] <- (cor(data$ev21^2,data$siv))
@@ -159,9 +157,6 @@ for (g in 1:length(E)) {
       d<-d+delt
       i<-i+1
     }
-    par(mfrow = c(1, 2))
-
-    plot(m1[0:300])
     signc[j,3] <- check_initial_abs_increase(m1)#result
     signc[j,5] <- check_initial_abs_increase(m2)
     if(signc[j,3]!=1){
@@ -228,14 +223,14 @@ for (g in 1:length(E)) {
         rls<-(lm(x~siv, data=data_sample))
         s.rls<-summary(rls, diagnostics=T)
         data_sample$siv<-(data_sample$x-k*d*data_sample$R)
-        s.rls<-summary(rls,vcov. = function(x) vcovHC(x, type="HC1"), diagnostics=T)
+        s.rls<-summary(rls,vcov. = function(x) sandwich::vcovHC(x, type="HC1"), diagnostics=T)
         data_sample$ev21<-resid(s.rls)
         ##FGLS
         ehatsq <- resid(rls)^2
         sighatsq.rls  <- lm(log(ehatsq)~siv, data=data_sample)
         data_sample$vari <- sqrt(exp(fitted(sighatsq.rls)))
         vvar[i] <- var(data_sample$vari)
-        fgls <- lm(x~siv, weights=1/vari, data=data_sample)
+        fgls <- lm(x~siv, weights=1/data_sample$vari, data=data_sample)
         data_sample$ev22<-resid(fgls)
         m1[i]<-cor(data_sample$ev21^2,data_sample$siv)#
         l1 <- summary(lm((data_sample$ev21^2)~data_sample$siv,data=data_sample))
@@ -249,7 +244,7 @@ for (g in 1:length(E)) {
         x2= (ssr2/2)/(sse2/n^2)^2
         #dv[i] <-pchisq(x2, df =1,lower.tail=FALSE)-pchisq(x1, df =1,lower.tail=FALSE)#
         x3 <- x1/x2#sumsq(predict(lm((ev22^2)~siv,data=data))/predict(lm((ev21^2)~siv,data=data))/predict(lm((ev21^2)~siv,data=data)))
-        dv2[i] <- pf(x3, df = 1, df2 = 1, lower.tail = TRUE)
+        dv2[i] <- pf(x3, df1 = 1, df2 = 1, lower.tail = TRUE)
         st[i]<-d
         # non-parametric
         samp1 <- (predict(lm((data_sample$ev21^2)~data_sample$siv,data=data_sample)))^2
@@ -264,7 +259,13 @@ for (g in 1:length(E)) {
 
           ### updating the formula for regressions
             # #### DT condition of homoscedatic case
-      d0 <- (which.min(abs(m1)))*delt
+      rvec <- data_sample$R
+      xvec <- data_sample$x
+      # Run the enhanced delta sweep
+      results <- gmm_test_delta_sweep(xvec, rvec, k=k, delta_max = dd, n_deltas = 200)
+      # Find interesting points
+      min_j_idx <- which.min(results$J_stat)
+      d0=results$delta[min_j_idx]
       d0i[l] <- d0
 
       ### DT point for heteroscedastic case- parametric approach
@@ -333,16 +334,16 @@ for (g in 1:length(E)) {
 
   iv_str <- paste(paste0(" ~ "), paste(vars1, collapse = " + "), paste0("+"),paste( H, collapse = " + "))## Construct formula as a string
   instruments <- as.formula(iv_str)# Convert to formula object
-  iv1<-ivreg(formula, instruments, data=data)
+  iv1<-AER::ivreg(formula, instruments, data=data)
    ############Parametric heterogeneous case
   iv_str <- paste(paste0(" ~ "), paste(vars2, collapse = " + "), paste0("+"),paste( H, collapse = " + "))## Construct formula as a string
   instruments <- as.formula(iv_str)# Convert to formula object
-  iv2<-ivreg(formula, instruments, data=data)
+  iv2<-AER::ivreg(formula, instruments, data=data)
 
   #### Non-parametric heterogeneous case
   v_str <- paste(paste0(" ~ "), paste(vars3, collapse = " + "), paste0("+"),paste( H, collapse = " + "))## Construct formula as a string
   instruments <- as.formula(iv_str)# Convert to formula object
-  iv3<-ivreg(formula, instruments, data=data)
+  iv3<-AER::ivreg(formula, instruments, data=data)
 
   return(list(IV1 = (iv1), IV2 = (iv2), IV3 = (iv3),siv_list = (siv_list), signk = (signk)))
 

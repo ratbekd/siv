@@ -7,26 +7,11 @@
 #' @param reps Number of bootstrap loops.
 #' @return A list containing SIV regression results.IV1- a simple SIV, IV2- a parametric SIV, IV3- a non-parametric SIV, citable- a table of confidence intervals.
 #' @export
-#' @importFrom stats  predict
-#' @importFrom stats  complete.cases
-#' @importFrom stats  fitted
-#' @importFrom stats pf
-#' @importFrom stats pchisq
-#' @importFrom stats sum
-#' @importFrom stats sumsq
-#' @importFrom stats var
-#' @importFrom stats as.formula
-#' @importFrom stats lm
-#' @importFrom stats cor
-#' @importFrom stats cov
-#' @importFrom stats residuals
-#' @importFrom stats df.residual
-#' @importFrom stats qt
-#' @importFrom stats sign
-#' @importFrom stats rnrom
-#' @importFrom stats sd
-#' @importFrom stats mean
-#' @importFrom stats abs#'
+#' @importFrom stats pf var resid rnorm sd ecdf qt predict complete.cases fitted as.formula lm cor cov df.residual pchisq
+#' @importFrom sandwich vcovHC
+#' @importFrom AER ivreg
+
+
 #' @examples
 #' df <- wooldridge::mroz  # Use sample data set
 #' data <- df[complete.cases(df), ]  # Remove missing values
@@ -45,17 +30,11 @@
 #' summ.iv3 <- summary(iv3, diagnostics=TRUE)
 #'result$citable ###  renders the CI table of beta estimates
 #'result$delta0 ###  renders the delta0 estimates:SIV, RSIV-p, RSIV-n.
-#'SIv <- result$sivs[[2]] ## renders the robust SIV estimation
+#'SIV <- result$sivs[[2]] ## renders the robust SIV estimation
 siv_reg <- function(data, Y, X, H, reps) {
-  library(dplyr)
-  library(ivreg)
-  library(lmtest)
-  library(sandwich)
-  library(AER)
-  library()
   rad2deg <- function(rad) {(rad * 180) / (pi)}
   deg2rad <- function(deg) {(deg * pi) / (180)}
-  # Ensure variables exist in data
+   # Ensure variables exist in data
   if (!all(c(Y, X, H) %in% names(data))) {
     stop("Some variables are missing in the dataset.")
   }
@@ -137,7 +116,7 @@ siv_reg <- function(data, Y, X, H, reps) {
       data$siv<-(data$x-k*d*data$R) ### SIV
       ####OLS estimates
       rls<-(lm(data$x~data$siv, data=data))
-      s.rls<-summary(rls,vcov. = function(x) vcovHC(x, type="HC1"), diagnostics=T)
+      s.rls<-summary(rls,vcov. = function(x) sandwich::vcovHC(x, type="HC1"), diagnostics=T)
       data$ev21<-resid(s.rls)
       m1[i]<-(cov(data$ev21^2,data$siv))
       m2[i] <- (cor(data$ev21^2,data$siv))
@@ -164,7 +143,7 @@ siv_reg <- function(data, Y, X, H, reps) {
   }
 
   k <- signc[which.max(ch),1]
- # cat("The true sign for cor(xu) is", k )
+  # cat("The true sign for cor(xu) is", k )
   #####################################
 
   if(k!=0){
@@ -220,14 +199,14 @@ siv_reg <- function(data, Y, X, H, reps) {
         rls<-(lm(x~siv, data=data_sample))
         s.rls<-summary(rls, diagnostics=T)
         data_sample$siv<-(data_sample$x-k*d*data_sample$R)
-        s.rls<-summary(rls,vcov. = function(x) vcovHC(x, type="HC1"), diagnostics=T)
+        s.rls<-summary(rls,vcov. = function(x) sandwich::vcovHC(x, type="HC1"), diagnostics=T)
         data_sample$ev21<-resid(s.rls)
         ##FGLS
         ehatsq <- resid(rls)^2
         sighatsq.rls  <- lm(log(ehatsq)~siv, data=data_sample)
         data_sample$vari <- sqrt(exp(fitted(sighatsq.rls)))
         vvar[i] <- var(data_sample$vari)
-        fgls <- lm(x~siv, weights=1/vari, data=data_sample)
+        fgls <- lm(x~siv, weights=1/data_sample$vari, data=data_sample)
         data_sample$ev22<-resid(fgls)
         m1[i]<-cor(data_sample$ev21^2,data_sample$siv)#
         l1 <- summary(lm((data_sample$ev21^2)~data_sample$siv,data=data_sample))
@@ -241,7 +220,8 @@ siv_reg <- function(data, Y, X, H, reps) {
         x2= (ssr2/2)/(sse2/n^2)^2
         #
         x3 <- x1/x2#
-        dv2[i] <- pf(x3, df = 1, df2 = 1, lower.tail = TRUE)
+        dv2[i] <- pf(x3, df1 = 1, df2 = 1, lower.tail = TRUE)
+
         st[i]<-d
         # non-parametric
         samp1 <- (predict(lm((data_sample$ev21^2)~data_sample$siv,data=data_sample)))^2
@@ -263,11 +243,18 @@ siv_reg <- function(data, Y, X, H, reps) {
       # formula <-hours~lwage+educ+ age+kidslt6+ kidsge6+ nwifeinc
       ###the First-Stage equation formula
       fs_formula_str <- paste(paste0(X," ~ ","siv","+"), paste(H, collapse = " + "))#
-      #### DT condition of homoscedatic case
+      #### DT condition of homoscedastic case
       d0 <- (which.min(abs(m1)))*delt
+      rvec <- data_sample$R
+      xvec <- data_sample$x
+      # Run the enhanced delta sweep
+      results <- gmm_test_delta_sweep(xvec, rvec, k=k, delta_max = dd, n_deltas = 200)
+      # Find interesting points
+      min_j_idx <- which.min(results$J_stat)
+      d0=results$delta[min_j_idx]
       d0i[l] <- d0
       data_sample$siv<-(data_sample$x-k*d0*data_sample$R)
-      iv2<-ivreg(formula, instruments, data=data_sample)
+      iv2<-AER::ivreg(formula, instruments, data=data_sample)
       summ.iv2 <- summary(iv2, diagnostics=T)#
       ## saving the estimation parameters for each sample
       fitc[l] <- iv2$coefficients[2]
@@ -277,7 +264,7 @@ siv_reg <- function(data, Y, X, H, reps) {
       d0r <-  which.min(dv2)*delt
       d0ri[l] <- d0r
       data_sample$siv<-(data_sample$x-k*d0r*data_sample$R)
-      iv3<-ivreg(formula, instruments, data=data_sample)
+      iv3<-AER::ivreg(formula, instruments, data=data_sample)
       summ.iv3 <- summary(iv3, diagnostics=T)#,
       ## saving the estimation paramters for each sample
       fitcr[l] <- iv3$coefficients[2]
@@ -287,7 +274,7 @@ siv_reg <- function(data, Y, X, H, reps) {
       d0rn <- which.min(x4)*delt
       d0rni[l] <- d0rn
       data_sample$siv<-(data_sample$x-k*d0rn*data_sample$R)
-      iv4<-ivreg(formula, instruments, data=data_sample)
+      iv4<-AER::ivreg(formula, instruments, data=data_sample)
       summ.iv4 <- summary(iv4, diagnostics=T)#,
       ## saving the estimation parameters for each sample
       fitcrn[l] <- iv4$coefficients[2]
@@ -337,12 +324,11 @@ siv_reg <- function(data, Y, X, H, reps) {
 
     ### final satge estimations
     ###### Simple homogenous assumption case
-    d0i <-  d0i[complete.cases(d0i)]
     d0m <- mean(d0i)
     data$siv<-(data$x-k*d0m*data$R)
     siv<-(data$x-k*d0m*data$R)
     fs1<-lm(as.formula(fs_formula_str), data=data)
-    iv1<-ivreg(formula, instruments, data=data)
+    iv1<-AER::ivreg(formula, instruments, data=data)
     #summ.iv1 <- summary(iv1, diagnostics=T)#
     ############Paramteric heterogenous case
     d0ri <-  d0ri[complete.cases(d0ri)]
@@ -350,7 +336,7 @@ siv_reg <- function(data, Y, X, H, reps) {
     data$siv<-(data$x-k*d0rm*data$R)
     sivr<-(data$x-k*d0rm*data$R)
     fs2<-lm(as.formula(fs_formula_str), data=data)
-    iv2<-ivreg(formula, instruments, data=data)
+    iv2<-AER::ivreg(formula, instruments, data=data)
     #
 
     #### Non-parameteric heterogenous case
@@ -359,20 +345,20 @@ siv_reg <- function(data, Y, X, H, reps) {
     data$siv<-(data$x-k*d0rnm*data$R)
     sivrn<-(data$x-k*d0rnm*data$R)
     fs3<-lm(as.formula(fs_formula_str), data=data)
-    iv3<-ivreg(formula, instruments, data=data)
+    iv3<-AER::ivreg(formula, instruments, data=data)
     #
-      }else{
+  }else{
     v=rnorm(N,0,1)
     print("NO endogeneity problem. All SIV estimates are the same as the OLS")
     d0m=0.001
     data$siv<-(data$x-k*d0m*data$R)+v
-    iv1<-ivreg(formula, instruments, data=data)
+    iv1<-AER::ivreg(formula, instruments, data=data)
     #
     data$siv<-(data$x-k*d0rm*data$R)+v
-    iv2<-ivreg(formula, instruments, data=data)
+    iv2<-AER::ivreg(formula, instruments, data=data)
     #
     data$siv<-(data$x-k*d0rnm*data$R)+v
-    iv3<-ivreg(formula, instruments, data=data)
+    iv3<-AER::ivreg(formula, instruments, data=data)
 
     siv<-(data$x-k*d0m*data$R)
     ############Parametric heterogeneous case
@@ -380,12 +366,12 @@ siv_reg <- function(data, Y, X, H, reps) {
     #### Non-parametric heterogeneous case
     sivrn<-siv
     #
-      }
+  }
   ### Table for CI of beta
   siv_tb<-data.frame(siv,sivr,sivrn)
   colnames(siv_tb)<-c("SIV","SIV_r", "SIV_rn")
   #rownames(mv)<- c("SIV","SIVRr","SIVRn")#, "nearc4")
   ###   (mv)
- # cat("Use result$IV1, result$IV3, and result$IV3 for SIV estimations.  Use result$delta0 to  obtain delta0 to compute the SIV" )
+  # cat("Use result$IV1, result$IV3, and result$IV3 for SIV estimations.  Use result$delta0 to  obtain delta0 to compute the SIV" )
   return(list(IV1 = (iv1), IV2 = (iv2), IV3 = (iv3), FS1=(fs1), FS2=(fs2), FS3=(fs3), sign=(sign_cor_ux), sivs=(siv_tb), citable=mv, delta0=c(d0m, d0rm, d0rnm)))
 }
