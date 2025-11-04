@@ -1,5 +1,5 @@
 Package: siv
-Title: SIV method for Linear Regression Models
+Title: Synthetic IV Method for Linear Regression Models
 Version: 0.0.0.9000
 Authors@R: c(
     person("Ratbek", "Dzhumashev", email= "ratbek.dzhumashev@monash.edu", role = c("aut", "cre")),
