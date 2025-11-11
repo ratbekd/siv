@@ -2,7 +2,7 @@
 % Please edit documentation in R/msiv_reg.R
 \name{msiv_reg}
 \alias{msiv_reg}
-\title{Perform Instrumental Variable Regression using multiple SIVs}
+\title{This function performs Instrumental Variable Regression using multiple synthetic IVs}
 \usage{
 msiv_reg(data, Y, X, H, reps = 5)
 }
@@ -21,7 +21,8 @@ msiv_reg(data, Y, X, H, reps = 5)
 A list containing IV regression results and generated SIVs.
 }
 \description{
-Perform Instrumental Variable Regression using multiple SIVs
+The synthetic IVs are identified using the dual tendency DT condition for coplanar regression vectors.
+The DT is formulated for both the homoscedastic and heteroscedastic cases.
 }
 \examples{
 df <- wooldridge::mroz

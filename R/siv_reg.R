@@ -1,5 +1,7 @@
-#' Perform Instrumental Variable Regression using SIV
+#' This function performs Instrumental Variable Regression using a single synthetic IV.
 #'
+#' The synthetic IV is identified using the dual tendency DT condition for coplanar regression vectors.
+#' The DT is formulated for both the homoscedastic and heteroscedastic cases.
 #' @param data A data frame.
 #' @param Y Name of the dependent variable.
 #' @param X Name of the endogenous variable.

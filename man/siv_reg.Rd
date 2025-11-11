@@ -2,7 +2,7 @@
 % Please edit documentation in R/siv_reg.R
 \name{siv_reg}
 \alias{siv_reg}
-\title{Perform Instrumental Variable Regression using SIV}
+\title{This function performs Instrumental Variable Regression using a single synthetic IV.}
 \usage{
 siv_reg(data, Y, X, H, reps)
 }
@@ -21,7 +21,8 @@ siv_reg(data, Y, X, H, reps)
 A list containing SIV regression results.IV1- a simple SIV, IV2- a parametric SIV, IV3- a non-parametric SIV, citable- a table of confidence intervals.
 }
 \description{
-Perform Instrumental Variable Regression using SIV
+The synthetic IV is identified using the dual tendency DT condition for coplanar regression vectors.
+The DT is formulated for both the homoscedastic and heteroscedastic cases.
 }
 \examples{
 df <- wooldridge::mroz  # Use sample data set
