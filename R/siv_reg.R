@@ -9,7 +9,7 @@
 #' @param reps Number of bootstrap loops.
 #' @return A list containing SIV regression results.IV1- a simple SIV, IV2- a parametric SIV, IV3- a non-parametric SIV, citable- a table of confidence intervals.
 #' @export
-#' @importFrom stats pf var resid rnorm sd ecdf qt predict complete.cases fitted as.formula lm cor cov df.residual pchisq
+#' @importFrom stats pf var resid rnorm sd ecdf qt predict complete.cases fitted as.formula lm cor cov df.residual pchisq quantile
 #' @importFrom sandwich vcovHC
 #' @importFrom AER ivreg
 
@@ -23,7 +23,7 @@
 #' Y <- as.character(colnames(H0))[1] ###OUTCOME variable
 #' X <-as.character(colnames(H0))[2] ###ENDOEGENOUS variable
 #' H<- as.character(colnames(H0))[-(1:2)] #
-#' result <- siv_reg(data, Y, X, H, reps=5)
+#' result <- siv_reg(data, Y, X, H, reps=10)
 #' iv1 <-(result$IV1)# a simple SIV
 #' iv2 <-(result$IV2)# a robust parametric SIV (RSIV-p)
 #' iv3 <-(result$IV3)# a robust non-parametric SIV (RSIV-n)
@@ -32,6 +32,7 @@
 #' summ.iv3 <- summary(iv3, diagnostics=TRUE)
 #'result$citable ###  renders the CI table of beta estimates
 #'result$delta0 ###  renders the delta0 estimates:SIV, RSIV-p, RSIV-n.
+#'result$delta0_CI ###  renders the CI of delta0 estimates:SIV, RSIV-p, RSIV-n.
 #'SIV <- result$sivs[[2]] ## renders the robust SIV estimation
 siv_reg <- function(data, Y, X, H, reps) {
   rad2deg <- function(rad) {(rad * 180) / (pi)}
@@ -160,7 +161,7 @@ siv_reg <- function(data, Y, X, H, reps) {
     b2t=0
     N<-nrow(data)
     reps=reps
-    S=round(N*.999)
+    S=round(N*.95)
     l=1
     fitc <- matrix(ncol = 1, nrow = reps)
     sumb2=matrix(ncol = 1, nrow = reps)
@@ -324,8 +325,8 @@ siv_reg <- function(data, Y, X, H, reps) {
     rownames(mv)<- c("SIV","SIVRr","SIVRn")#, "nearc4")
     ###   (mv)
 
-    ### final satge estimations
-    ###### Simple homogenous assumption case
+    ### final stage estimations
+    ###### Simple homogeneous assumption case
     d0m <- mean(d0i)
     data$siv<-(data$x-k*d0m*data$R)
     siv<-(data$x-k*d0m*data$R)
@@ -341,14 +342,27 @@ siv_reg <- function(data, Y, X, H, reps) {
     iv2<-AER::ivreg(formula, instruments, data=data)
     #
 
-    #### Non-parameteric heterogenous case
+    #### Non-parametric heterogenous case
     d0rni <-  d0rni[complete.cases(d0rni)]
     d0rnm <- mean(d0rni)
     data$siv<-(data$x-k*d0rnm*data$R)
     sivrn<-(data$x-k*d0rnm*data$R)
     fs3<-lm(as.formula(fs_formula_str), data=data)
     iv3<-AER::ivreg(formula, instruments, data=data)
-    #
+
+    # Homoskedastic DT point
+    ci_d0   <- quantile(d0i,   probs = c(alpha/2, 1 - alpha/2), na.rm = TRUE)
+
+    # Heteroskedastic DT, parametric
+    ci_d0r  <- quantile(d0ri,  probs = c(alpha/2, 1 - alpha/2), na.rm = TRUE)
+
+    # Heteroskedastic DT, nonparametric
+    ci_d0rn <- quantile(d0rni, probs = c(alpha/2, 1 - alpha/2), na.rm = TRUE)
+
+    ci_d0
+    ci_d0r
+    ci_d0rn
+
   }else{
     v=rnorm(N,0,1)
     print("NO endogeneity problem. All SIV estimates are the same as the OLS")
@@ -367,6 +381,10 @@ siv_reg <- function(data, Y, X, H, reps) {
     sivr <-siv
     #### Non-parametric heterogeneous case
     sivrn<-siv
+    ci_d0=0
+    ci_d0r=0
+    ci_d0rn=0
+
     #
   }
   ### Table for CI of beta
@@ -375,5 +393,5 @@ siv_reg <- function(data, Y, X, H, reps) {
   #rownames(mv)<- c("SIV","SIVRr","SIVRn")#, "nearc4")
   ###   (mv)
   # cat("Use result$IV1, result$IV3, and result$IV3 for SIV estimations.  Use result$delta0 to  obtain delta0 to compute the SIV" )
-  return(list(IV1 = (iv1), IV2 = (iv2), IV3 = (iv3), FS1=(fs1), FS2=(fs2), FS3=(fs3), sign=(sign_cor_ux), sivs=(siv_tb), citable=mv, delta0=c(d0m, d0rm, d0rnm)))
+  return(list(IV1 = (iv1), IV2 = (iv2), IV3 = (iv3), FS1=(fs1), FS2=(fs2), FS3=(fs3), sign=(sign_cor_ux), sivs=(siv_tb), citable=mv, delta0=c(d0m, d0rm, d0rnm),delta0_CI=c(ci_d0,ci_d0r,ci_d0rn)))
 }
