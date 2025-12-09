@@ -6,10 +6,11 @@
 #' @param Y Name of the dependent variable.
 #' @param X Name of the endogenous variable.
 #' @param H Vector of exogenous variable names.
+#' @param method Either "simple" or "GMM". Simple method is based on cov(e^2,siv)=0. GMM method is based on J=M'WM=0.
 #' @param reps Number of bootstrap loops.
 #' @return A list containing SIV regression results.IV1- a simple SIV, IV2- a parametric SIV, IV3- a non-parametric SIV, citable- a table of confidence intervals.
 #' @export
-#' @importFrom stats pf var resid rnorm sd ecdf qt predict complete.cases fitted as.formula lm cor cov df.residual pchisq
+#' @importFrom stats pf var resid rnorm sd ecdf qt predict complete.cases fitted as.formula lm cor cov df.residual pchisq quantile
 #' @importFrom sandwich vcovHC
 #' @importFrom AER ivreg
 
@@ -23,7 +24,7 @@
 #' Y <- as.character(colnames(H0))[1] ###OUTCOME variable
 #' X <-as.character(colnames(H0))[2] ###ENDOEGENOUS variable
 #' H<- as.character(colnames(H0))[-(1:2)] #
-#' result <- siv_reg(data, Y, X, H, reps=5)
+#' result <- siv_reg(data, Y, X, H, method="simlpe", reps=10)
 #' iv1 <-(result$IV1)# a simple SIV
 #' iv2 <-(result$IV2)# a robust parametric SIV (RSIV-p)
 #' iv3 <-(result$IV3)# a robust non-parametric SIV (RSIV-n)
@@ -32,8 +33,9 @@
 #' summ.iv3 <- summary(iv3, diagnostics=TRUE)
 #'result$citable ###  renders the CI table of beta estimates
 #'result$delta0 ###  renders the delta0 estimates:SIV, RSIV-p, RSIV-n.
+#'result$delta0_CI ###  renders the CI of delta0 estimates:SIV, RSIV-p, RSIV-n.
 #'SIV <- result$sivs[[2]] ## renders the robust SIV estimation
-siv_reg <- function(data, Y, X, H, reps) {
+siv_reg <- function(data, Y, X, H,method="simple", reps) {
   rad2deg <- function(rad) {(rad * 180) / (pi)}
   deg2rad <- function(deg) {(deg * pi) / (180)}
    # Ensure variables exist in data
@@ -160,7 +162,7 @@ siv_reg <- function(data, Y, X, H, reps) {
     b2t=0
     N<-nrow(data)
     reps=reps
-    S=round(N*.999)
+    S=round(N*.95)
     l=1
     fitc <- matrix(ncol = 1, nrow = reps)
     sumb2=matrix(ncol = 1, nrow = reps)
@@ -182,7 +184,7 @@ siv_reg <- function(data, Y, X, H, reps) {
       data_sample <- data[sample(1:N, S, replace = TRUE), ]
       ####Computation of m1
 
-      #dd<-3#end value for delta
+
       d<-0.01# starting value for delta
       delt<-0.01# step to change delta
       i<-1 ### starting value for a counter
@@ -246,14 +248,27 @@ siv_reg <- function(data, Y, X, H, reps) {
       ###the First-Stage equation formula
       fs_formula_str <- paste(paste0(X," ~ ","siv","+"), paste(H, collapse = " + "))#
       #### DT condition of homoscedastic case
-      d0 <- (which.min(abs(m1)))*delt
-      rvec <- data_sample$R
-      xvec <- data_sample$x
-      # Run the enhanced delta sweep
-      results <- gmm_test_delta_sweep(xvec, rvec, k=k, delta_max = dd, n_deltas = 200)
-      # Find interesting points
-      min_j_idx <- which.min(results$J_stat)
-      d0=results$delta[min_j_idx]
+
+      # d0 <- (which.min(abs(m1)))*delt
+      # rvec <- data_sample$R
+      # xvec <- data_sample$x
+      # # Run the enhanced delta sweep
+      # results <- gmm_test_delta_sweep(xvec, rvec, k=k, delta_max = dd, n_deltas = 200)
+      # # Find interesting points
+      # min_j_idx <- which.min(results$J_stat)
+      # d0=results$delta[min_j_idx]
+      if(method=="simple"){
+        # Simple delta estimate
+        d0 <- which.min(abs(m1)) * delt}
+      else{
+        rvec <- data_sample$R
+        xvec <- data_sample$x
+        # # Run the enhanced delta sweep
+        results <- gmm_test_delta_sweep(xvec, rvec, k=k, delta_max = dd, n_deltas = 200)
+        # # Find interesting points
+        min_j_idx <- which.min(results$J_stat)
+        d0 <- results$delta[min_j_idx]}
+
       d0i[l] <- d0
       data_sample$siv<-(data_sample$x-k*d0*data_sample$R)
       iv2<-AER::ivreg(formula, instruments, data=data_sample)
@@ -324,8 +339,8 @@ siv_reg <- function(data, Y, X, H, reps) {
     rownames(mv)<- c("SIV","SIVRr","SIVRn")#, "nearc4")
     ###   (mv)
 
-    ### final satge estimations
-    ###### Simple homogenous assumption case
+    ### final stage estimations
+    ###### Simple homogeneous assumption case
     d0m <- mean(d0i)
     data$siv<-(data$x-k*d0m*data$R)
     siv<-(data$x-k*d0m*data$R)
@@ -341,14 +356,27 @@ siv_reg <- function(data, Y, X, H, reps) {
     iv2<-AER::ivreg(formula, instruments, data=data)
     #
 
-    #### Non-parameteric heterogenous case
+    #### Non-parametric heterogenous case
     d0rni <-  d0rni[complete.cases(d0rni)]
     d0rnm <- mean(d0rni)
     data$siv<-(data$x-k*d0rnm*data$R)
     sivrn<-(data$x-k*d0rnm*data$R)
     fs3<-lm(as.formula(fs_formula_str), data=data)
     iv3<-AER::ivreg(formula, instruments, data=data)
-    #
+
+    # Homoskedastic DT point
+    ci_d0   <- quantile(d0i,   probs = c(alpha/2, 1 - alpha/2), na.rm = TRUE)
+
+    # Heteroskedastic DT, parametric
+    ci_d0r  <- quantile(d0ri,  probs = c(alpha/2, 1 - alpha/2), na.rm = TRUE)
+
+    # Heteroskedastic DT, nonparametric
+    ci_d0rn <- quantile(d0rni, probs = c(alpha/2, 1 - alpha/2), na.rm = TRUE)
+
+    ci_d0
+    ci_d0r
+    ci_d0rn
+
   }else{
     v=rnorm(N,0,1)
     print("NO endogeneity problem. All SIV estimates are the same as the OLS")
@@ -367,6 +395,10 @@ siv_reg <- function(data, Y, X, H, reps) {
     sivr <-siv
     #### Non-parametric heterogeneous case
     sivrn<-siv
+    ci_d0=0
+    ci_d0r=0
+    ci_d0rn=0
+
     #
   }
   ### Table for CI of beta
@@ -375,5 +407,5 @@ siv_reg <- function(data, Y, X, H, reps) {
   #rownames(mv)<- c("SIV","SIVRr","SIVRn")#, "nearc4")
   ###   (mv)
   # cat("Use result$IV1, result$IV3, and result$IV3 for SIV estimations.  Use result$delta0 to  obtain delta0 to compute the SIV" )
-  return(list(IV1 = (iv1), IV2 = (iv2), IV3 = (iv3), FS1=(fs1), FS2=(fs2), FS3=(fs3), sign=(sign_cor_ux), sivs=(siv_tb), citable=mv, delta0=c(d0m, d0rm, d0rnm)))
+  return(list(IV1 = (iv1), IV2 = (iv2), IV3 = (iv3), FS1=(fs1), FS2=(fs2), FS3=(fs3), sign=(sign_cor_ux), sivs=(siv_tb), citable=mv, delta0=c(d0m, d0rm, d0rnm),delta0_CI=c(ci_d0,ci_d0r,ci_d0rn)))
 }

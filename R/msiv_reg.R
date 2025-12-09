@@ -6,6 +6,7 @@
 #' @param Y Name of the dependent variable.
 #' @param X Character vector of endogenous variable names.
 #' @param H Character vector of exogenous variable names.
+#' @param method Either "simple" or "GMM". Simple method is based on cov(e^2,siv)=0. GMM method is based on J=M'WM=0.
 #' @param reps Number of bootstrap loops.
 #'
 #' @return A list containing IV regression results and generated SIVs.
@@ -17,8 +18,14 @@
 #' df <- wooldridge::mroz
 #' data <- df[complete.cases(df), ]
 #' result <- msiv_reg(data, "hours", c("lwage", "educ"),
-#'                    c("age", "kidslt6", "kidsge6", "nwifeinc"), reps=5)
-msiv_reg <- function(data, Y, X, H, reps = 5) {
+#'                    c("age", "kidslt6", "kidsge6", "nwifeinc"), method="simple", reps=5)
+#'result$IV1
+#'result$IV2
+#'result$IV3
+#'result1 <- msiv_reg(data, "hours", c("lwage", "educ"),
+#'                    c("age", "kidslt6", "kidsge6", "nwifeinc"), method="GMM", reps=5)
+#'result1$IV1
+msiv_reg <- function(data, Y, X, H, method="simple",reps = 5) {
 
   rad2deg <- function(rad) (rad * 180) / pi
 
@@ -77,6 +84,103 @@ msiv_reg <- function(data, Y, X, H, reps = 5) {
 
   if (reps > 10) reps <- 10
   if (reps < 2) reps <- 2
+  ## ---------------------------------------------------------------------------
+  ##  Single-endogenous-variable case
+  ##  This branch is designed to be compatible with `siv_reg()`.
+  ## ---------------------------------------------------------------------------
+
+  if (length(X) == 1L) {
+
+    x_name <- X[1L]
+
+    # Run the original single-IV routine
+    base <- siv_reg(data = data, Y = Y, X = x_name, H = H, reps = reps)
+
+    if (is.null(base$sivs)) {
+      stop("`siv_reg()` did not return a `sivs` component – cannot build instruments.")
+    }
+
+    sivs <- base$sivs
+
+    required_cols <- c("SIV", "SIV_r", "SIV_rn")
+    if (!all(required_cols %in% colnames(sivs))) {
+      stop(
+        "Unexpected column names in `siv_reg()$sivs`; expected ",
+        paste(required_cols, collapse = ", "),
+        "."
+      )
+    }
+
+    n_obs <- nrow(sivs)
+    if (n_obs < nrow(data)) {
+      # Match siv_reg behaviour: it may drop trailing rows internally.
+      data_iv <- data[seq_len(n_obs), , drop = FALSE]
+    } else {
+      data_iv <- data
+    }
+
+    # Attach SIVs with explicit names
+    s1_name <- paste0("siv_", x_name)
+    s2_name <- paste0("siv_r_", x_name)
+    s3_name <- paste0("siv_rn_", x_name)
+
+    data_iv[[s1_name]] <- sivs[, "SIV"]
+    data_iv[[s2_name]] <- sivs[, "SIV_r"]
+    data_iv[[s3_name]] <- sivs[, "SIV_rn"]
+
+    # Structural equation: Y ~ X + H
+    formula <- as.formula(
+      paste(Y, "~", paste(c(x_name, H), collapse = " + "))
+    )
+
+    # Instrument sets for the three specifications
+    inst1 <- as.formula(
+      paste("~", paste(c(s1_name, H), collapse = " + "))
+    )
+    inst2 <- as.formula(
+      paste("~", paste(c(s2_name, H), collapse = " + "))
+    )
+    inst3 <- as.formula(
+      paste("~", paste(c(s3_name, H), collapse = " + "))
+    )
+
+    # Final 2SLS regressions
+    iv1 <- AER::ivreg(formula, inst1, data = data_iv)
+    iv2 <- AER::ivreg(formula, inst2, data = data_iv)
+    iv3 <- AER::ivreg(formula, inst3, data = data_iv)
+
+    # Pack SIVs into a list for convenience
+    siv_list <- list()
+    siv_list[[s1_name]] <- data_iv[[s1_name]]
+    siv_list[[s2_name]] <- data_iv[[s2_name]]
+    siv_list[[s3_name]] <- data_iv[[s3_name]]
+
+    # Safely extract sign of cor(x,u) if available
+    tmp_sign <- NA_real_
+    if (!is.null(base$sign)) {
+      tmp_sign <- as.numeric(base$sign)[1L]
+    } else if (!is.null(base$sign_cor_ux)) {
+      tmp_sign <- as.numeric(base$sign_cor_ux)[1L]
+    } else if (!is.null(base$signk)) {
+      tmp_sign <- as.numeric(base$signk)[1L]
+    }
+
+    signk <- tmp_sign
+    names(signk) <- x_name
+
+    return(
+      list(
+        IV1       = iv1,
+        IV2       = iv2,
+        IV3       = iv3,
+        siv_list  = siv_list,
+        signk     = signk
+      )
+    )
+  }
+
+
+  ############# Multiple IV case
 
   N <- nrow(data)
   siv_list <- list()
@@ -107,6 +211,28 @@ msiv_reg <- function(data, Y, X, H, reps = 5) {
     V <- resid(fity)
     V <- (V - mean(V)) / sd(V) * sd(x0)
     data$R <- V
+
+    # ------------------------------------------------------------------
+    ## Determine delta range dd via 70-degree rule (as in siv_reg)
+    ## ------------------------------------------------------------------
+    d    <- 0.01
+    delt <- 0.01
+    theta1 <- 0
+
+    while (theta1 < 70 ) {
+      siv_tmp <- (data$x - d * data$R)
+      num <- sum(data$x * siv_tmp)
+      den <- sqrt(sum(data$x^2)) * sqrt(sum(siv_tmp^2))
+      if (den > 0) {
+        theta <- acos(num / den)
+        theta1 <- rad2deg(theta)
+      } else {
+        theta1 <- 90
+      }
+      d <- d + delt
+    }
+    dd <- d
+    if (!is.finite(dd) || dd <= 0) dd <- 3
 
     # Determining the sign of cor(x,u)
     signc <- matrix(0, ncol = 5, nrow = 2)
@@ -161,7 +287,7 @@ msiv_reg <- function(data, Y, X, H, reps = 5) {
       d0i <- numeric(reps)
       d0ri <- numeric(reps)
       d0rni <- numeric(reps)
-      S <- round(N * 0.999)
+      S <- round(N * 0.99)
       l <- 1
 
       while (l < reps) {
@@ -217,14 +343,19 @@ msiv_reg <- function(data, Y, X, H, reps = 5) {
         }
 
         # Simple delta estimate
-        #d0i[l] <- which.min(abs(m1)) * delt
-        rvec <- data_sample$R
-        xvec <- data_sample$x
-        # Run the enhanced delta sweep
-        results <- gmm_test_delta_sweep(xvec, rvec, k=k, delta_max = dd, n_deltas = 200)
-        # Find interesting points
-        min_j_idx <- which.min(results$J_stat)
-        d0i[l] <- results$delta[min_j_idx]
+        if(method=="simple"){
+          # Simple delta estimate
+          d0i[l] <- which.min(abs(m1)) * delt}
+        else{
+          rvec <- data_sample$R
+          xvec <- data_sample$x
+          # # Run the enhanced delta sweep
+          results <- gmm_test_delta_sweep(xvec, rvec, k=k, delta_max = dd, n_deltas = 200)
+          # # Find interesting points
+          min_j_idx <- which.min(results$J_stat)
+          d0i[l] <- results$delta[min_j_idx]
+          }
+
         # Parametric heteroscedastic
         d0ri[l] <- which.min(dv2) * delt
 
@@ -234,28 +365,23 @@ msiv_reg <- function(data, Y, X, H, reps = 5) {
         l <- l + 1
       }
 
-      # Random shocks for SIVs
-      v1 <- rnorm(N, 0, sd(x))
-      v2 <- rnorm(N, 0, sd(x))
-      v3 <- rnorm(N, 0, sd(x))
+
 
       # Simple homogeneous case
       d0i <- d0i[complete.cases(d0i)]
       d0m <- mean(d0i)
-      siv_list[[paste0("siv1", g)]] <- (data$x - k * d0m * data$R)
-      siv_list[[paste0("siv1b", g)]] <- (data$x - k * d0m * data$R + v1)
+      siv_list[[paste0("siv_s_", xname)]] <- (data$x - k * d0m * data$R)
 
       # Parametric heterogeneous case
       d0ri <- d0ri[complete.cases(d0ri)]
       d0rm <- mean(d0ri)
-      siv_list[[paste0("siv2", g)]] <- (data$x - k * d0rm * data$R)
-      siv_list[[paste0("siv2b", g)]] <- (data$x - k * d0rm * data$R + v2)
+      siv_list[[paste0("siv_r_", xname)]] <- (data$x - k * d0rm * data$R)
 
       # Non-parametric heterogeneous case
       d0rni <- d0rni[complete.cases(d0rni)]
       d0rnm <- mean(d0rni)
-      siv_list[[paste0("siv3", g)]] <- (data$x - k * d0rnm * data$R)
-      siv_list[[paste0("siv3b", g)]] <- (data$x - k * d0rnm * data$R + v3)
+      siv_list[[paste0("siv_rn_", xname)]] <- (data$x - k * d0rnm * data$R)
+
 
     } else {
       print("NO endogeneity problem. All SIV estimates are the same as OLS")
@@ -263,9 +389,9 @@ msiv_reg <- function(data, Y, X, H, reps = 5) {
       d0rm <- 0.001
       d0rnm <- 0.001
 
-      siv_list[[paste0("siv1", g)]] <- (data$x - k * d0m * data$R)
-      siv_list[[paste0("siv2", g)]] <- (data$x - k * d0rm * data$R)
-      siv_list[[paste0("siv3", g)]] <- (data$x - k * d0rnm * data$R)
+      siv_list[[paste0("siv_s_", g)]] <- (data$x - k * d0m * data$R)
+      siv_list[[paste0("siv_r_", g)]] <- (data$x - k * d0rm * data$R)
+      siv_list[[paste0("siv_rn_", g)]] <- (data$x - k * d0rnm * data$R)
     }
   }
 
@@ -275,9 +401,10 @@ msiv_reg <- function(data, Y, X, H, reps = 5) {
   }
 
   # Extract SIV variable names
-  vars1 <- names(siv_list)[grepl("^siv1[0-9]*$", names(siv_list))]
-  vars2 <- names(siv_list)[grepl("^siv2[0-9]*$", names(siv_list))]
-  vars3 <- names(siv_list)[grepl("^siv3[0-9]*$", names(siv_list))]
+
+   vars1 <- names(siv_list)[grepl("^siv_s_", names(siv_list))]  # Matches "siv" not followed by underscore
+   vars2 <- names(siv_list)[grepl("^siv_r_", names(siv_list))]
+   vars3 <- names(siv_list)[grepl("^siv_rn_", names(siv_list))]
 
   # Build formulas
   formula <- make_formula(Y, c(X, H))

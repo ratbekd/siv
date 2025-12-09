@@ -4,7 +4,7 @@
 \alias{msiv_reg}
 \title{This function performs Instrumental Variable Regression using multiple synthetic IVs}
 \usage{
-msiv_reg(data, Y, X, H, reps = 5)
+msiv_reg(data, Y, X, H, method = "simple", reps = 5)
 }
 \arguments{
 \item{data}{A data frame.}
@@ -14,6 +14,8 @@ msiv_reg(data, Y, X, H, reps = 5)
 \item{X}{Character vector of endogenous variable names.}
 
 \item{H}{Character vector of exogenous variable names.}
+
+\item{method}{Either "simple" or "GMM". Simple method is based on cov(e^2,siv)=0. GMM method is based on J=M'WM=0.}
 
 \item{reps}{Number of bootstrap loops.}
 }
@@ -28,5 +30,11 @@ The DT is formulated for both the homoscedastic and heteroscedastic cases.
 df <- wooldridge::mroz
 data <- df[complete.cases(df), ]
 result <- msiv_reg(data, "hours", c("lwage", "educ"),
-                   c("age", "kidslt6", "kidsge6", "nwifeinc"), reps=5)
+                   c("age", "kidslt6", "kidsge6", "nwifeinc"), method="simple", reps=5)
+result$IV1
+result$IV2
+result$IV3
+result1 <- msiv_reg(data, "hours", c("lwage", "educ"),
+                   c("age", "kidslt6", "kidsge6", "nwifeinc"), method="GMM", reps=5)
+result1$IV1
 }

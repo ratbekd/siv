@@ -4,7 +4,7 @@
 \alias{siv_reg}
 \title{This function performs Instrumental Variable Regression using a single synthetic IV.}
 \usage{
-siv_reg(data, Y, X, H, reps)
+siv_reg(data, Y, X, H, method = "simple", reps)
 }
 \arguments{
 \item{data}{A data frame.}
@@ -14,6 +14,8 @@ siv_reg(data, Y, X, H, reps)
 \item{X}{Name of the endogenous variable.}
 
 \item{H}{Vector of exogenous variable names.}
+
+\item{method}{Either "simple" or "GMM". Simple method is based on cov(e^2,siv)=0. GMM method is based on J=M'WM=0.}
 
 \item{reps}{Number of bootstrap loops.}
 }
@@ -32,7 +34,7 @@ H0 <- data.frame(hours, lwage, educ, age, kidslt6, kidsge6, nwifeinc)
 Y <- as.character(colnames(H0))[1] ###OUTCOME variable
 X <-as.character(colnames(H0))[2] ###ENDOEGENOUS variable
 H<- as.character(colnames(H0))[-(1:2)] #
-result <- siv_reg(data, Y, X, H, reps=5)
+result <- siv_reg(data, Y, X, H, method="simlpe", reps=10)
 iv1 <-(result$IV1)# a simple SIV
 iv2 <-(result$IV2)# a robust parametric SIV (RSIV-p)
 iv3 <-(result$IV3)# a robust non-parametric SIV (RSIV-n)
@@ -41,5 +43,6 @@ summ.iv2<- summary(iv2, diagnostics=TRUE)
 summ.iv3 <- summary(iv3, diagnostics=TRUE)
 result$citable ###  renders the CI table of beta estimates
 result$delta0 ###  renders the delta0 estimates:SIV, RSIV-p, RSIV-n.
+result$delta0_CI ###  renders the CI of delta0 estimates:SIV, RSIV-p, RSIV-n.
 SIV <- result$sivs[[2]] ## renders the robust SIV estimation
 }
